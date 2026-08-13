@@ -309,6 +309,44 @@ pre-commit run eslint            # Frontend linting
 - **[GPT.md](GPT.md)** - For OpenAI/ChatGPT tools
 - **[.cursor/rules/dev-standard.mdc](.cursor/rules/dev-standard.mdc)** - For Cursor editor
 
+## Cursor Cloud specific instructions
+
+### Preferred stack: `docker-compose-light.yml` (not full `docker-compose.yml`)
+
+Cloud VMs are resource-constrained. Use the light compose file only. Startup is wired in [`.cursor/environment.json`](.cursor/environment.json):
+
+| Phase | What it does |
+|-------|----------------|
+| `install` | Starts `dockerd` if needed, then `docker compose -f docker-compose-light.yml build` (images cached in the Environment Build / snapshot) |
+| `start` | Starts `dockerd` if needed, then `docker compose -f docker-compose-light.yml up -d`, waits for `http://localhost:9001/health` |
+
+Do **not** use `up --build` on every agent boot — rebuild belongs in `install` so layer cache is reused across sessions.
+
+Services: Postgres (`db-light`), Flask (`superset-light`), webpack/dev proxy (`superset-node-light`), one-shot init (`superset-init-light`). No Redis, Celery, nginx, or websocket.
+
+- **App URL / health**: `http://localhost:9001` — validate with `curl -f http://localhost:9001/health`
+- **Login**: `admin` / `admin` (created by `superset-init-light`)
+- First bring-up after a cold image build can take several minutes (`load-examples`). `superset-light` starts only after init exits; until then `/health` via the node proxy may 502/EAI_AGAIN.
+
+### Commands (light stack)
+
+| Task | Command |
+|------|---------|
+| Rebuild images (install / after Dockerfile or requirements change) | `docker compose -f docker-compose-light.yml build` |
+| Start containers (no rebuild) | `docker compose -f docker-compose-light.yml up -d` |
+| Backend unit tests | `docker compose -f docker-compose-light.yml run --rm pytest-runner pytest tests/unit_tests/` |
+| Frontend lint (host, after `npm ci` in `superset-frontend`) | `cd superset-frontend && npm run lint` |
+| Frontend tests | `cd superset-frontend && npm run test -- <file>` |
+| Logs / stop | `docker compose -f docker-compose-light.yml logs -f` / `... down` |
+
+See also `docker-compose-light.yml` header comments and `.devcontainer/start-superset.sh`.
+
+### Gotchas
+
+- Do **not** use `docker-compose.yml` in Cloud Agents unless explicitly requested — it pulls Redis/Celery/nginx/websocket and is heavier than needed.
+- Webpack proxies `/health` to `superset-light:8088`; a failing health check usually means init is still running or the app container is not up yet.
+- Docker CE must be present in the base Environment snapshot (fuse-overlayfs + iptables-legacy for DinD). `start`/`install` only ensure `dockerd` is running and the socket is usable.
+
 ---
 
 **LLM Note**: This codebase is actively modernizing toward full TypeScript and type safety. Always run `pre-commit run` to validate changes. Follow the ongoing refactors section to avoid deprecated patterns.

@@ -313,35 +313,39 @@ pre-commit run eslint            # Frontend linting
 
 ### Preferred stack: `docker-compose-light.yml` (not full `docker-compose.yml`)
 
-Cloud VMs are resource-constrained. Use the light compose file only:
+Cloud VMs are resource-constrained. Use the light compose file only. Startup is wired in [`.cursor/environment.json`](.cursor/environment.json):
 
-```bash
-docker compose -f docker-compose-light.yml up --build
-```
+| Phase | What it does |
+|-------|----------------|
+| `install` | Starts `dockerd` if needed, then `docker compose -f docker-compose-light.yml build` (images cached in the Environment Build / snapshot) |
+| `start` | Starts `dockerd` if needed, then `docker compose -f docker-compose-light.yml up -d`, waits for `http://localhost:9001/health` |
 
-This runs Postgres (`db-light`), Flask app (`superset-light`), webpack/dev proxy (`superset-node-light`), and a one-shot init (`superset-init-light`). It does **not** start Redis, Celery, nginx, or websocket.
+Do **not** use `up --build` on every agent boot — rebuild belongs in `install` so layer cache is reused across sessions.
+
+Services: Postgres (`db-light`), Flask (`superset-light`), webpack/dev proxy (`superset-node-light`), one-shot init (`superset-init-light`). No Redis, Celery, nginx, or websocket.
 
 - **App URL / health**: `http://localhost:9001` — validate with `curl -f http://localhost:9001/health`
 - **Login**: `admin` / `admin` (created by `superset-init-light`)
-- First bring-up can take several minutes (image build + `load-examples`). `superset-light` starts only after init exits successfully; until then `/health` via the node proxy may 502/EAI_AGAIN.
+- First bring-up after a cold image build can take several minutes (`load-examples`). `superset-light` starts only after init exits; until then `/health` via the node proxy may 502/EAI_AGAIN.
 
 ### Commands (light stack)
 
 | Task | Command |
 |------|---------|
-| Start | `docker compose -f docker-compose-light.yml up --build` |
+| Rebuild images (install / after Dockerfile or requirements change) | `docker compose -f docker-compose-light.yml build` |
+| Start containers (no rebuild) | `docker compose -f docker-compose-light.yml up -d` |
 | Backend unit tests | `docker compose -f docker-compose-light.yml run --rm pytest-runner pytest tests/unit_tests/` |
 | Frontend lint (host, after `npm ci` in `superset-frontend`) | `cd superset-frontend && npm run lint` |
 | Frontend tests | `cd superset-frontend && npm run test -- <file>` |
 | Logs / stop | `docker compose -f docker-compose-light.yml logs -f` / `... down` |
 
-See also `docker-compose-light.yml` header comments and `.devcontainer/start-superset.sh`. Standard project guidance remains in this file above and in CONTRIBUTING.md / developer portal docs.
+See also `docker-compose-light.yml` header comments and `.devcontainer/start-superset.sh`.
 
 ### Gotchas
 
 - Do **not** use `docker-compose.yml` in Cloud Agents unless explicitly requested — it pulls Redis/Celery/nginx/websocket and is heavier than needed.
 - Webpack proxies `/health` to `superset-light:8088`; a failing health check usually means init is still running or the app container is not up yet.
-- If Docker daemon is not running in the VM, start `dockerd` (fuse-overlayfs storage driver + iptables-legacy are required for Docker-in-Docker here). Ensure `/var/run/docker.sock` is usable by the agent user.
+- Docker CE must be present in the base Environment snapshot (fuse-overlayfs + iptables-legacy for DinD). `start`/`install` only ensure `dockerd` is running and the socket is usable.
 
 ---
 

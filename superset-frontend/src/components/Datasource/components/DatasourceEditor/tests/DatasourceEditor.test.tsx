@@ -364,49 +364,6 @@ test('properly renders the metric information', async () => {
   expect(certifiedBy).toHaveValue('someone');
 });
 
-// Explore passes SqlMetric.data metrics: top-level warning_markdown, no extra.
-// Datasets API passes metrics.extra JSON instead. Both must populate Warning.
-test('preserves metric warning_markdown from Explore datasource without extra', async () => {
-  const warningText = 'Explore-only warning text';
-  const testProps = createProps();
-  testProps.datasource = {
-    ...testProps.datasource,
-    metrics: [
-      {
-        id: 99,
-        uuid: 'explore-metric-uuid',
-        expression: 'COUNT(*)',
-        verbose_name: 'COUNT(*)',
-        metric_name: 'count',
-        metric_type: 'count',
-        warning_markdown: warningText,
-      },
-    ],
-  };
-
-  await asyncRender(testProps);
-
-  const metricButton = screen.getByTestId('collection-tab-Metrics');
-  await userEvent.click(metricButton);
-
-  expect(document.querySelector('.anticon-warning')).toBeInTheDocument();
-
-  const expandToggle = await screen.findAllByLabelText(/expand row/i);
-  await userEvent.click(expandToggle[0]);
-
-  // Trigger onChange so we can assert editor state kept the Explore warning
-  const certifiedBy = await screen.findByPlaceholderText(/certified by/i);
-  fireEvent.change(certifiedBy, { target: { value: 'tester' } });
-
-  await waitFor(() => {
-    expect(testProps.onChange).toHaveBeenCalled();
-  });
-
-  const lastCallIndex = testProps.onChange.mock.calls.length - 1;
-  const updatedDatasource = testProps.onChange.mock.calls[lastCallIndex][0];
-  expect(updatedDatasource.metrics[0].warning_markdown).toBe(warningText);
-});
-
 test('properly updates the metric information', async () => {
   await asyncRender(createProps());
 

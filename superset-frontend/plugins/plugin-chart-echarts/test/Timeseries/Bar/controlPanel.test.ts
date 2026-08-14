@@ -292,3 +292,23 @@ test('x_axis_time_format should be hidden for numeric columns', () => {
     false,
   );
 });
+
+test('truncateYAxis control should be labeled Truncate Y Axis', () => {
+  const truncateYAxisControl: any = getControl('truncateYAxis');
+  expect(truncateYAxisControl).toBeDefined();
+  expect(truncateYAxisControl.config.label).toBe('Truncate Y Axis');
+});
+
+test('truncateYAxis control description should reference Y axis', () => {
+  const truncateYAxisControl: any = getControl('truncateYAxis');
+  expect(truncateYAxisControl).toBeDefined();
+  expect(truncateYAxisControl.config.description).toBe(
+    'It’s not recommended to truncate Y axis in Bar chart.',
+  );
+});
+
+test('truncateXAxis control should be labeled Truncate X Axis', () => {
+  const truncateXAxisControl: any = getControl('truncateXAxis');
+  expect(truncateXAxisControl).toBeDefined();
+  expect(truncateXAxisControl.config.label).toBe('Truncate X Axis');
+});
